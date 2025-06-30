@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Digit Recognizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-6 rounded-2xl shadow-lg max-w-xl w-full space-y-6 text-center">
+    <h1 class="text-2xl font-bold text-gray-800">Draw a Digit (0–9)</h1>
+
+    <canvas id="canvas" width="280" height="280" class="bg-white border rounded-lg mx-auto"></canvas>
+
+    <div class="flex justify-center gap-4">
+      <button onclick="clearCanvas()" class="bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600">Clear</button>
+      <button onclick="submitCanvas()" class="bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600">Predict</button>
+    </div>
+
+    <form method="post" id="digitForm">
+      <input type="hidden" name="pixels" id="pixelsInput">
+    </form>
+
+    {% if prediction is not none %}
+      <div>
+        <h2 class="text-xl text-gray-700">Prediction:</h2>
+        <p class="text-4xl font-bold text-blue-600">{{ prediction }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let drawing = false;
+
+canvas.addEventListener("mousedown", () => drawing = true);
+canvas.addEventListener("mouseup", () => drawing = false);
+canvas.addEventListener("mouseleave", () => drawing = false);
+canvas.addEventListener("mousemove", draw);
+
+function draw(e) {
+  if (!drawing) return;
+  const rect = canvas.getBoundingClientRect();
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(e.clientX - rect.left, e.clientY - rect.top, 8, 0, 2 * Math.PI);
+  ctx.fill();
+}
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function submitCanvas() {
+  // 1. Downscale to 8x8
+  const downscaled = document.createElement("canvas");
+  downscaled.width = 8;
+  downscaled.height = 8;
+  const dctx = downscaled.getContext("2d");
+  dctx.drawImage(canvas, 0, 0, 8, 8);
+
+  // 2. Get ImageData (RGBA)
+  const data = dctx.getImageData(0, 0, 8, 8).data;
+
+  // 3. Convert to grayscale, invert, and normalize to 0–16
+  const pixels = [];
+  for (let i = 0; i < data.length; i += 4) {
+    const red = data[i]; // since R=G=B for grayscale
+    const inverted = 255 - red;
+    const scaled = Math.round((inverted / 255) * 16); // match sklearn's 0–16 scale
+    pixels.push(scaled);
+  }
+
+  // 4. Submit to Flask app
+  document.getElementById("pixelsInput").value = JSON.stringify(pixels);
+  document.getElementById("digitForm").submit();
+}
+</script>
+</body>
+</html>
